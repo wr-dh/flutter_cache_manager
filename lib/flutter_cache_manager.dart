@@ -13,9 +13,15 @@ import 'package:synchronized/synchronized.dart';
 
 import 'src/cache_object.dart';
 
+typedef String KeyGenerator(String url);
+
 class CacheManager {
   static const _keyCacheData = "lib_cached_image_data";
   static const _keyCacheCleanDate = "lib_cached_image_data_last_clean";
+
+  static String _defaultKeyGenerator(String url) {
+    return url;
+  }
 
   static Duration inBetweenCleans = new Duration(days: 7);
   static Duration maxAgeCacheObject = new Duration(days: 30);
@@ -146,57 +152,66 @@ class CacheManager {
   }
 
   _removeOldObjectsFromCache() async {
-    var oldestDateAllowed = new DateTime.now().subtract(maxAgeCacheObject);
+    final oldestDateAllowed = new DateTime.now().subtract(maxAgeCacheObject);
 
     //Remove old objects
-    var oldValues = List.from(
-        _cacheData.values.where((c) => c.touched.isBefore(oldestDateAllowed)));
-    for (var oldValue in oldValues) {
+    final oldValues = _cacheData.entries
+        .where((c) => c.value.touched.isBefore(oldestDateAllowed));
+
+    oldValues.forEach((oldValue) async {
       await _removeFile(oldValue);
-    }
+    });
   }
 
   _shrinkLargeCache() async {
     //Remove oldest objects when cache contains to many items
     if (_cacheData.length > maxNrOfCacheObjects) {
-      var allValues = _cacheData.values.toList();
-      allValues.sort(
-          (c1, c2) => c1.touched.compareTo(c2.touched)); // sort OLDEST first
-      var oldestValues = List.from(
-          allValues.take(_cacheData.length - maxNrOfCacheObjects)); // get them
+      final allValues = _cacheData.entries.toList();
+
+      allValues.sort((c1, c2) =>
+          c1.value.touched.compareTo(c2.value.touched)); // sort OLDEST first
+
+      final oldestValues =
+          allValues.take(_cacheData.length - maxNrOfCacheObjects); // get them
+
       oldestValues.forEach((item) async {
         await _removeFile(item);
       }); //remove them
     }
   }
 
-  _removeFile(CacheObject cacheObject) async {
+  _removeFile(MapEntry<String, CacheObject> cacheEntry) async {
     //Ensure the file has been downloaded
-    if (cacheObject.relativePath == null) {
+    if (cacheEntry.value.relativePath == null) {
       return;
     }
 
-    _cacheData.remove(cacheObject.url);
+    _cacheData.remove(cacheEntry.key);
 
-    var file = new File(await cacheObject.getFilePath());
+    var file = new File(await cacheEntry.value.getFilePath());
     if (await file.exists()) {
       file.delete();
     }
   }
 
   ///Get the file from the cache or online. Depending on availability and age
-  Future<File> getFile(String url, {Map<String, String> headers}) async {
+  Future<File> getFile(
+    String url, {
+    Map<String, String> headers,
+    KeyGenerator keyGenerator: _defaultKeyGenerator,
+  }) async {
     String log = "[Flutter Cache Manager] Loading $url";
+    String key = keyGenerator(url);
 
-    if (!_cacheData.containsKey(url)) {
+    if (!_cacheData.containsKey(key)) {
       await _lock.synchronized(() {
-        if (!_cacheData.containsKey(url)) {
-          _cacheData[url] = new CacheObject(url);
+        if (!_cacheData.containsKey(key)) {
+          _cacheData[url] = new CacheObject(key);
         }
       });
     }
 
-    var cacheObject = _cacheData[url];
+    var cacheObject = _cacheData[key];
     await cacheObject.lock.synchronized(() async {
       // Set touched date to show that this object is being used recently
       cacheObject.touch();
@@ -211,7 +226,7 @@ class CacheManager {
         log = "$log\nDownloading for first time.";
         var newCacheData = await _downloadFile(url, headers, cacheObject.lock);
         if (newCacheData != null) {
-          _cacheData[url] = newCacheData;
+          _cacheData[key] = newCacheData;
         }
         return;
       }
@@ -223,7 +238,7 @@ class CacheManager {
         var newCacheData = await _downloadFile(url, headers, cacheObject.lock,
             relativePath: cacheObject.relativePath);
         if (newCacheData != null) {
-          _cacheData[url] = newCacheData;
+          _cacheData[key] = newCacheData;
         }
 
         log =
@@ -237,7 +252,7 @@ class CacheManager {
         var newCacheData = await _downloadFile(url, headers, cacheObject.lock,
             relativePath: cacheObject.relativePath, eTag: cacheObject.eTag);
         if (newCacheData != null) {
-          _cacheData[url] = newCacheData;
+          _cacheData[key] = newCacheData;
         }
         log =
             "$log\nNew cache file valid till ${_cacheData[url].validTill?.toIso8601String() ?? "only once.. :("}";
