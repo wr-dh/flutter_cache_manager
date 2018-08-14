@@ -69,11 +69,7 @@ class CacheManager {
       Map jsonCache = const JsonDecoder().convert(jsonCacheString);
       jsonCache.forEach((key, data) {
         if (data != null) {
-          final url = data['url'];
-
-          if (url != null) {
-            _cacheData[key] = new CacheObject.fromMap(url, data);
-          }
+          _cacheData[key] = new CacheObject.fromMap(data);
         }
       });
     }
@@ -210,7 +206,7 @@ class CacheManager {
     if (!_cacheData.containsKey(key)) {
       await _lock.synchronized(() {
         if (!_cacheData.containsKey(key)) {
-          _cacheData[key] = new CacheObject(url);
+          _cacheData[key] = new CacheObject();
         }
       });
     }
@@ -262,6 +258,7 @@ class CacheManager {
             "$log\nNew cache file valid till ${_cacheData[key].validTill?.toIso8601String() ?? "only once.. :("}";
         return;
       }
+
       log =
           "$log\nUsing file from cache.\nCache valid till ${_cacheData[key].validTill?.toIso8601String() ?? "only once.. :("}";
     });
@@ -279,9 +276,13 @@ class CacheManager {
 
   ///Download the file from the url
   Future<CacheObject> _downloadFile(
-      String url, Map<String, String> headers, Object lock,
-      {String relativePath, String eTag}) async {
-    var newCache = new CacheObject(url, lock: lock);
+    String url,
+    Map<String, String> headers,
+    Object lock, {
+    String relativePath,
+    String eTag,
+  }) async {
+    var newCache = new CacheObject(lock: lock);
     newCache.setRelativePath(relativePath);
 
     if (eTag != null) {

@@ -46,13 +46,11 @@ class CacheObject {
   }
 
   DateTime touched;
-  String url;
 
   Lock lock;
   Map _map;
 
-  CacheObject(String url, {this.lock}) {
-    this.url = url;
+  CacheObject({this.lock}) {
     _map = new Map();
     touch();
     if (lock == null) {
@@ -60,8 +58,7 @@ class CacheObject {
     }
   }
 
-  CacheObject.fromMap(String url, Map map, {this.lock}) {
-    this.url = url;
+  CacheObject.fromMap(Map map, {this.lock}) {
     _map = map;
 
     if (_map.containsKey(_keyTouched)) {
