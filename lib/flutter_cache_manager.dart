@@ -27,8 +27,9 @@ class CacheManager {
     if (_instance == null) {
       await _lock.synchronized(() async {
         if (_instance == null) {
-          _instance = new CacheManager._();
-          await _instance._init();
+          final freshInstance = new CacheManager._();
+          await freshInstance._init();
+          _instance = freshInstance;
         }
       });
     }
