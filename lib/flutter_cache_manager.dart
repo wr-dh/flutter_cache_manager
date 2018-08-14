@@ -69,7 +69,11 @@ class CacheManager {
       Map jsonCache = const JsonDecoder().convert(jsonCacheString);
       jsonCache.forEach((key, data) {
         if (data != null) {
-          _cacheData[key] = new CacheObject.fromMap(key, data);
+          final url = data['url'];
+
+          if (url != null) {
+            _cacheData[key] = new CacheObject.fromMap(url, data);
+          }
         }
       });
     }
@@ -206,7 +210,7 @@ class CacheManager {
     if (!_cacheData.containsKey(key)) {
       await _lock.synchronized(() {
         if (!_cacheData.containsKey(key)) {
-          _cacheData[url] = new CacheObject(key);
+          _cacheData[key] = new CacheObject(url);
         }
       });
     }
@@ -242,7 +246,7 @@ class CacheManager {
         }
 
         log =
-            "$log\Cache file valid till ${_cacheData[url].validTill?.toIso8601String() ?? "only once.. :("}";
+            "$log\Cache file valid till ${_cacheData[key].validTill?.toIso8601String() ?? "only once.. :("}";
         return;
       }
       //If file is old, download if server has newer one
@@ -255,18 +259,18 @@ class CacheManager {
           _cacheData[key] = newCacheData;
         }
         log =
-            "$log\nNew cache file valid till ${_cacheData[url].validTill?.toIso8601String() ?? "only once.. :("}";
+            "$log\nNew cache file valid till ${_cacheData[key].validTill?.toIso8601String() ?? "only once.. :("}";
         return;
       }
       log =
-          "$log\nUsing file from cache.\nCache valid till ${_cacheData[url].validTill?.toIso8601String() ?? "only once.. :("}";
+          "$log\nUsing file from cache.\nCache valid till ${_cacheData[key].validTill?.toIso8601String() ?? "only once.. :("}";
     });
 
     //If non of the above is true, than we don't have to download anything.
     _save();
     if (showDebugLogs) print(log);
 
-    var path = await _cacheData[url].getFilePath();
+    var path = await _cacheData[key].getFilePath();
     if (path == null) {
       return null;
     }
